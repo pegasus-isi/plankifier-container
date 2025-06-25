@@ -1,0 +1,54 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: pegasus/plankifier:latest,pegasus/plankifier:${{ github.ref_name }}
+
+  create-release:
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create release
+        run: |
+          gh release create \
+            --repo ${{ github.repository }} \
+            --title "Release ${{ github.ref_name }}" \
+            --notes-file CHANGELOG.md \
+            --discussion-category "Announcements" \
+            ${{ github.ref_name }}
+        env:
+          GH_TOKEN: ${{ github.token }}
